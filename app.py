@@ -117,7 +117,7 @@ class AlchemyClient:
         return {
             "token_id": token_id,
             "name": metadata.get("name") or f"#{token_id}",
-            "traits": metadata.get("traits") or [],
+            "traits": metadata.get("attributes") or metadata.get("traits") or [],
             "permalink": OPENSEA_ASSET_LINK.format(contract=contract_address, token_id=token_id),
             "sell_orders": [],
             "last_sale": None,
