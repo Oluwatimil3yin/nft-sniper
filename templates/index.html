@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NFT Rarity Sniper</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 900px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .tab-btn {
+            padding: 12px 24px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            color: #999;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+        }
+
+        .tab-btn.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border 0.3s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f0f0f0;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .results-header h2 {
+            color: #333;
+            font-size: 20px;
+        }
+
+        .floor-price {
+            background: #f5f5f5;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #f9f9f9;
+        }
+
+        th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #666;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+
+        tr:hover {
+            background: #fafafa;
+        }
+
+        .token-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .score {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .link-btn {
+            color: #667eea;
+            text-decoration: none;
+            padding: 4px 8px;
+            border: 1px solid #667eea;
+            border-radius: 4px;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .link-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            display: none;
+            font-size: 14px;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        .hint {
+            font-size: 12px;
+            color: #999;
+            margin-top: 6px;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .tabs {
+                gap: 5px;
+            }
+
+            .tab-btn {
+                padding: 10px 16px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 NFT Rarity Sniper</h1>
+        <p class="subtitle">Discover the rarest NFTs in any collection</p>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('opensea')">OpenSea</button>
+            <button class="tab-btn" onclick="switchTab('alchemy')">Alchemy (Contract)</button>
+        </div>
+
+        <!-- OpenSea Tab -->
+        <div id="opensea" class="tab-content active">
+            <div class="form-group">
+                <label for="collection">Collection Slug</label>
+                <input
+                    type="text"
+                    id="collection"
+                    placeholder="e.g., cryptopunks, boredapeyachtclub"
+                />
+                <div class="hint">Find the slug in the OpenSea collection URL</div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="limit-opensea">Scan Limit</label>
+                    <input
+                        type="number"
+                        id="limit-opensea"
+                        value="50"
+                        min="10"
+                        max="500"
+                    />
+                </div>
+                <div class="form-group">
+                    <label for="top-opensea">Top Results</label>
+                    <input
+                        type="number"
+                        id="top-opensea"
+                        value="10"
+                        min="1"
+                        max="50"
+                    />
+                </div>
+            </div>
+
+            <button onclick="snipeCollection()">Scan Collection</button>
+        </div>
+
+        <!-- Alchemy Tab -->
+        <div id="alchemy" class="tab-content">
+            <div class="form-group">
+                <label for="contract">Contract Address</label>
+                <input
+                    type="text"
+                    id="contract"
+                    placeholder="0x..."
+                />
+                <div class="hint">Full Ethereum contract address</div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="limit-alchemy">Scan Limit</label>
+                    <input
+                        type="number"
+                        id="limit-alchemy"
+                        value="50"
+                        min="10"
+                        max="500"
+                    />
+                </div>
+                <div class="form-group">
+                    <label for="top-alchemy">Top Results</label>
+                    <input
+                        type="number"
+                        id="top-alchemy"
+                        value="10"
+                        min="1"
+                        max="50"
+                    />
+                </div>
+            </div>
+
+            <button onclick="snipeContract()">Scan Contract</button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Scanning for rare NFTs...</p>
+        </div>
+
+        <div class="error" id="error"></div>
+
+        <div class="results" id="results">
+            <div class="results-header">
+                <h2>Rarity Results</h2>
+                <div class="floor-price" id="floorPrice"></div>
+            </div>
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Token</th>
+                        <th>Rarity Score</th>
+                        <th>Price</th>
+                        <th>Floor Gap</th>
+                        <th>Link</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tab) {
+            document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"));
+            document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"));
+            document.getElementById(tab).classList.add("active");
+            event.target.classList.add("active");
+        }
+
+        function showLoading() {
+            document.getElementById("loading").style.display = "block";
+            document.getElementById("results").style.display = "none";
+            document.getElementById("error").classList.remove("show");
+        }
+
+        function showError(message) {
+            document.getElementById("loading").style.display = "none";
+            document.getElementById("error").textContent = message;
+            document.getElementById("error").classList.add("show");
+        }
+
+        function showResults(data) {
+            document.getElementById("loading").style.display = "none";
+            document.getElementById("error").classList.remove("show");
+
+            if (data.floor_price) {
+                document.getElementById("floorPrice").textContent = `Floor: ${data.floor_price.toFixed(4)} ETH`;
+            } else {
+                document.getElementById("floorPrice").textContent = "Floor: N/A";
+            }
+
+            const tbody = document.getElementById("resultsBody");
+            tbody.innerHTML = "";
+
+            data.candidates.forEach((candidate, idx) => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td>${idx + 1}</td>
+                    <td><span class="token-name">${candidate.name}</span></td>
+                    <td><span class="score">${candidate.score}</span></td>
+                    <td>${candidate.price_text}</td>
+                    <td>${candidate.gap_text}</td>
+                    <td><a href="${candidate.permalink}" target="_blank" class="link-btn">View</a></td>
+                `;
+            });
+
+            document.getElementById("results").style.display = "block";
+        }
+
+        function snipeCollection() {
+            const collection = document.getElementById("collection").value.trim();
+            const limit = parseInt(document.getElementById("limit-opensea").value);
+            const top = parseInt(document.getElementById("top-opensea").value);
+
+            if (!collection) {
+                showError("Please enter a collection slug.");
+                return;
+            }
+
+            showLoading();
+            fetch("/api/snipe", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ collection, limit, top }),
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    showError(data.error);
+                } else {
+                    showResults(data);
+                }
+            })
+            .catch(err => showError("Network error: " + err.message));
+        }
+
+        function snipeContract() {
+            const contract = document.getElementById("contract").value.trim();
+            const limit = parseInt(document.getElementById("limit-alchemy").value);
+            const top = parseInt(document.getElementById("top-alchemy").value);
+
+            if (!contract) {
+                showError("Please enter a contract address.");
+                return;
+            }
+
+            showLoading();
+            fetch("/api/snipe", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contract, limit, top }),
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    showError(data.error);
+                } else {
+                    showResults(data);
+                }
+            })
+            .catch(err => showError("Network error: " + err.message));
+        }
+    </script>
+</body>
+</html>
