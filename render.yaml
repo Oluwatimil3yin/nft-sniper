@@ -1,4 +1,4 @@
-﻿services:
+ervices:
   - type: web
     name: nft-rarity-sniper-web
     env: python
