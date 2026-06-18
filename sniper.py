@@ -7,6 +7,13 @@ from collections import Counter, defaultdict
 import requests
 from dotenv import load_dotenv
 
+from rarity_utils import (
+    AlchemyNFTClient,
+    build_trait_rarity_map,
+    compute_rarity_score,
+    load_rarity_map,
+)
+
 load_dotenv()
 
 OPENSEA_API_URL = "https://api.opensea.io/api/v1/assets"
@@ -243,7 +250,16 @@ def main():
         floor_price = None
         print("Alchemy mode does not include floor price by default.")
 
-    rarity_map = build_trait_rarity_map(assets)
+        # === NEW: Try accurate prebuilt rarity map first (from build_snapshot.py) ===
+        saved_map_data = load_rarity_map(args.contract)
+        if saved_map_data and saved_map_data.get("rarity_map"):
+            print(f"Using prebuilt accurate rarity map (based on ~{saved_map_data.get('total_supply')} tokens)")
+            rarity_map = saved_map_data["rarity_map"]
+        else:
+            print("No prebuilt rarity map found. Using sample-based rarity (less accurate).")
+            print("Tip: Run `python build_snapshot.py <contract> 8000` for much better results.")
+            rarity_map = build_trait_rarity_map(assets)
+
     scored_assets = []
 
     for asset in assets:

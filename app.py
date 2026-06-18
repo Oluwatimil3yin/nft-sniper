@@ -5,6 +5,8 @@ from collections import Counter, defaultdict
 import requests
 import time
 
+from rarity_utils import build_trait_rarity_map, compute_rarity_score, load_rarity_map
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -227,7 +229,12 @@ def snipe():
 
             floor_price = None
 
-        rarity_map = build_trait_rarity_map(assets)
+            # Prefer accurate prebuilt map when available
+            saved = load_rarity_map(contract)
+            if saved and saved.get("rarity_map"):
+                rarity_map = saved["rarity_map"]
+            else:
+                rarity_map = build_trait_rarity_map(assets)
         scored_assets = []
 
         for asset in assets:
