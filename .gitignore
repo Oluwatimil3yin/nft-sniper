@@ -22,5 +22,6 @@ MANIFEST
 .env
 .env.local
 .DS_Store
+.watcher_status.json
 venv/
 env/

@@ -287,6 +287,7 @@
         <div class="tabs">
             <button class="tab-btn active" onclick="switchTab('opensea')">OpenSea</button>
             <button class="tab-btn" onclick="switchTab('alchemy')">Alchemy (Contract)</button>
+            <button class="tab-btn" onclick="switchTab('watcher')">Manual Watcher</button>
         </div>
 
         <!-- OpenSea Tab -->
@@ -363,6 +364,47 @@
             </div>
 
             <button onclick="snipeContract()">Scan Contract</button>
+        </div>
+
+        <!-- Watcher Tab (Manual / Railway) -->
+        <div id="watcher" class="tab-content">
+            <div class="form-group">
+                <label for="watcher-contract">Contract to Watch</label>
+                <input
+                    type="text"
+                    id="watcher-contract"
+                    placeholder="0x..."
+                />
+                <div class="hint">Contract you want to front-run the reveal for</div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="watcher-mode">Mode</label>
+                    <select id="watcher-mode">
+                        <option value="reveal">reveal (front-run reveals)</option>
+                        <option value="both">both</option>
+                        <option value="mint">mint only</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="watcher-supply">Supply</label>
+                    <input type="number" id="watcher-supply" value="10000" />
+                </div>
+            </div>
+
+            <button onclick="getWatcherCommand()">Generate Railway Command</button>
+
+            <div id="watcher-result" style="margin-top: 20px; display: none;">
+                <label>Run this in Railway Shell or set as Start Command + Variables:</label>
+                <pre id="watcher-cmd" style="background:#f5f5f5; padding:12px; border-radius:6px; overflow:auto; font-size:13px;"></pre>
+                <small>Tip: For persistent runs, deploy the watcher as a separate worker service on Render.com (see README) and set the CONTRACT env var there.</small>
+            </div>
+
+            <div style="margin-top: 25px;">
+                <button onclick="refreshWatcherStatus()">Check Watcher Status</button>
+                <div id="watcher-status" style="margin-top: 10px; padding: 10px; background: #f9f9f9; border-radius: 6px; font-size: 13px; display: none;"></div>
+            </div>
         </div>
 
         <div class="loading" id="loading">
@@ -493,6 +535,60 @@
                 }
             })
             .catch(err => showError("Network error: " + err.message));
+        }
+
+        function getWatcherCommand() {
+            const contract = document.getElementById("watcher-contract").value.trim();
+            const mode = document.getElementById("watcher-mode").value;
+            const supply = parseInt(document.getElementById("watcher-supply").value);
+
+            if (!contract) {
+                alert("Please enter a contract address");
+                return;
+            }
+
+            fetch("/api/watcher-command", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contract, mode, supply, blast: true }),
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    const resultDiv = document.getElementById("watcher-result");
+                    document.getElementById("watcher-cmd").textContent = data.command;
+                    resultDiv.style.display = "block";
+                }
+            })
+            .catch(err => alert("Error: " + err.message));
+        }
+
+        function refreshWatcherStatus() {
+            const statusDiv = document.getElementById("watcher-status");
+            statusDiv.style.display = "block";
+            statusDiv.innerHTML = "Loading status...";
+
+            fetch("/api/watcher-status")
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === "not_running") {
+                        statusDiv.innerHTML = `<strong>${data.message}</strong>`;
+                    } else {
+                        let html = `<strong>Status:</strong> ${data.status || 'unknown'}<br>`;
+                        html += `<strong>Contract:</strong> ${data.contract || 'N/A'}<br>`;
+                        html += `<strong>Mode:</strong> ${data.mode || 'N/A'}<br>`;
+                        if (data.last_event) html += `<strong>Last event:</strong> ${data.last_event}<br>`;
+                        if (data.last_name) html += `<strong>Last NFT:</strong> ${data.last_name} (score: ${data.last_score || '?'})<br>`;
+                        html += `<strong>Last updated:</strong> ${data.last_updated || 'never'}<br>`;
+                        html += `<small>Run the watcher to update this status.</small>`;
+                        statusDiv.innerHTML = html;
+                    }
+                })
+                .catch(err => {
+                    statusDiv.innerHTML = "Failed to fetch status: " + err.message;
+                });
         }
     </script>
 </body>

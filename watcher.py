@@ -1,22 +1,31 @@
 """
 Real-time NFT Rarity Sniper (pre-OpenSea focused)
 
-Monitors a contract for NEW MINTS via Alchemy WebSocket (Transfer from zero address).
-As soon as a token is minted and metadata is available:
-- Fetches metadata instantly via Alchemy
-- Scores it using a pre-built accurate rarity map (from build_snapshot.py)
-- Alerts on high-rarity mints via Telegram
+Monitors contracts for reveals and mints. Supports both live watching and one-shot --blast.
 
-This beats OpenSea indexing latency.
+Designed to work great on Railway:
+- Set CONTRACT env var + other WATCHER_* vars
+- Run as a separate service or via shell for manual sniping
 
 Usage:
-    python watcher.py 0xYourContract [--threshold 180] [--map rarity_maps/0x....json]
+    python watcher.py 0xYourContract [options]
+    # or with env (great for Railway)
+    CONTRACT=0x... python watcher.py
+
+Env vars supported (Railway Variables):
+    CONTRACT or WATCHER_CONTRACT
+    WATCHER_MODE=both|reveal|mint
+    SUPPLY=10000
+    THRESHOLD=180
+    BLAST=true
+    BASE_URI=...
 """
 import asyncio
 import json
 import os
 import sys
 import time
+from datetime import datetime
 from typing import Optional, Dict
 
 import requests
@@ -34,6 +43,28 @@ from rarity_utils import (
 )
 
 load_dotenv()
+
+STATUS_FILE = ".watcher_status.json"
+
+
+def update_watcher_status(update: dict):
+    """Write simple status so the web UI can show 'live' info when watcher runs in same container/shell."""
+    data = {
+        "last_updated": datetime.utcnow().isoformat() + "Z",
+        "contract": None,
+        "mode": None,
+        "status": "idle",
+        "last_event": None,
+        "last_score": None,
+        "last_name": None,
+    }
+    data.update(update or {})
+    try:
+        with open(STATUS_FILE, "w") as f:
+            json.dump(data, f, indent=2)
+    except Exception:
+        pass  # non-critical
+
 
 ALCHEMY_API_KEY = os.getenv("ALCHEMY_API_KEY")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -164,6 +195,12 @@ class RaritySniper:
             return
         self.seen.add(token_id)
 
+        update_watcher_status({
+            "contract": self.contract,
+            "status": "mint_detected",
+            "last_event": f"mint_{token_id}",
+        })
+
         print(f"\n🆕 NEW MINT detected: Token #{token_id}")
 
         if not self.client:
@@ -218,6 +255,12 @@ class RaritySniper:
 
         self.reveal_triggered = True
         self.last_reveal_time = now
+
+        update_watcher_status({
+            "contract": self.contract,
+            "status": "revealing",
+            "last_event": "reveal_detected",
+        })
 
         print("\n" + "=" * 65)
         print("🚨🚨🚨  REVEAL / BLAST TRIGGERED — SCRAPING METADATA NOW  🚨🚨🚨")
@@ -392,29 +435,53 @@ class RaritySniper:
                 lines = [f"🔥 *BLAST with direct baseURI* 🔥", f"`{self.contract}`"] + \
                         [f"{i}. {t.get('name')} — **{t.get('rarity_score')}**" for i, t in enumerate(top,1)]
                 send_telegram("\n".join(lines))
+
+                update_watcher_status({
+                    "contract": self.contract,
+                    "status": "blast_complete",
+                    "last_score": top[0].get("rarity_score") if top else None,
+                    "last_name": top[0].get("name") if top else None,
+                    "last_event": "blast_completed",
+                })
         return result
 
 
 def main():
-    if len(sys.argv) < 2:
+    # Support running without CLI args using environment variables
+    # Perfect for Railway, Docker, or one-off manual runs
+    # Set CONTRACT (or WATCHER_CONTRACT), and optionally others in Railway Variables
+
+    contract = None
+    if len(sys.argv) > 1 and not sys.argv[1].startswith("--"):
+        contract = sys.argv[1].lower()
+
+    # Fallback to env vars (Railway friendly)
+    contract = contract or os.getenv("CONTRACT") or os.getenv("WATCHER_CONTRACT")
+
+    if not contract:
         print("Usage: python watcher.py <contract> [options]")
+        print("   or set CONTRACT=0xYourContract in environment")
         print("\nReveal front-run examples:")
         print("  python watcher.py 0x... --mode reveal --supply 10000 --threshold 180")
         print("  python watcher.py 0x... --blast --supply 10000                    # immediate scrape now")
         print("  python watcher.py 0x... --blast --base-uri https://.../ --supply 10000")
-        print("  python watcher.py 0x... --blast --watch --mode reveal")
+        print("\nRailway / Env var example:")
+        print("  Set CONTRACT=0x...  SUPPLY=10000  WATCHER_MODE=reveal  BLAST=true")
+        print("  Then run: python watcher.py")
         sys.exit(1)
 
-    contract = sys.argv[1].lower()
-    mode = "both"
-    threshold = 180.0
-    supply = 10000
-    map_path = None
-    max_workers = 70
-    blast = False
-    manual_base_uri = None
+    # Defaults from environment variables (overrideable by CLI flags)
+    mode = os.getenv("WATCHER_MODE", "both").lower()
+    threshold = float(os.getenv("THRESHOLD", os.getenv("WATCHER_THRESHOLD", "180")))
+    supply = int(os.getenv("SUPPLY", os.getenv("WATCHER_SUPPLY", "10000")))
+    map_path = os.getenv("MAP_PATH")
+    max_workers = int(os.getenv("MAX_WORKERS", "70"))
+    blast = os.getenv("BLAST", "false").lower() == "true" or os.getenv("WATCHER_BLAST", "false").lower() == "true"
+    manual_base_uri = os.getenv("BASE_URI") or os.getenv("WATCHER_BASE_URI")
 
-    i = 2
+    # Parse remaining CLI flags (they override env)
+    start_idx = 2 if (len(sys.argv) > 1 and not sys.argv[1].startswith("--")) else 1
+    i = start_idx
     while i < len(sys.argv):
         arg = sys.argv[i]
         if arg == "--mode" and i + 1 < len(sys.argv):
@@ -450,10 +517,15 @@ def main():
     )
     sniper.load_map(map_path)
 
+    update_watcher_status({
+        "contract": contract,
+        "mode": mode,
+        "status": "starting",
+    })
+
     if blast:
         print(f"\n[BLAST] Immediate scrape for {contract} (supply ~{supply})")
         sniper.blast_now()
-        # If user only wanted the blast (common for manual front-run), exit unless they passed --watch
         if "--watch" not in sys.argv:
             print("Blast complete. Exiting.")
             print("Add --watch if you also want to keep the listener running.")

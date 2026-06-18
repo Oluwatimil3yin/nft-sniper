@@ -131,12 +131,74 @@ python sniper.py --collection boredapeyachtclub --top 20
 - `app.py` + `templates/` — Simple web UI
 - `rarity_utils.py` — Shared accurate rarity + Alchemy helpers
 
+## Deployment on Render.com (Recommended)
+
+This project is now fully set up for **Render.com**.
+
+You are currently on the "New Web Service" page.  
+**Best approach:** Go back to the dashboard and use **New → Blueprint** (it will automatically create both the web UI + the watcher worker using the `render.yaml` I prepared).
+
+If you want to continue manually on this page:
+
+### 1. Create the Web Service (UI) — Current Page
+
+**Settings:**
+- **Name**: `nft-rarity-web`
+- **Region**: Oregon (or closest to you)
+- **Branch**: `main`
+- **Root Directory**: leave empty (or `.`)
+- **Build Command**: `pip install -r requirements.txt`
+- **Start Command**: `gunicorn app:app`
+- **Environment**: Python
+- **Instance Type**: Free
+
+**Environment Variables** (add these now or later):
+- `ALCHEMY_API_KEY` = your key
+- `TELEGRAM_BOT_TOKEN` (only if you want alerts in web too)
+- `TELEGRAM_CHAT_ID`
+
+Click **Create Web Service**.
+
+### 2. Create the Watcher (for manual sniping)
+
+After the web service is created:
+- Go back to dashboard → **New** → **Worker**
+- Connect the same repo + `main` branch
+- **Name**: `nft-rarity-watcher`
+- **Build Command**: `pip install -r requirements.txt`
+- **Start Command**: `python watcher.py`
+- **Environment**: Python
+
+**Critical Environment Variables** for the worker:
+- `CONTRACT` = `0xYourCollectionContract` ← **Change this every time you want to manually snipe a new drop**
+- `ALCHEMY_API_KEY`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+- `WATCHER_MODE` = `reveal`
+- `SUPPLY` = `10000`
+- `THRESHOLD` = `180`
+- `BLAST` = `true`
+
+### Manual Sniping Workflow
+
+1. Change the `CONTRACT` variable on the **watcher** service.
+2. Click **Manual Deploy** on the watcher service only.
+3. It will start watching that contract.
+
+For quick tests, use the **Shell** button on the watcher service and run:
+```bash
+./run_watcher.sh 0xYourContract --blast --supply 10000
+```
+
+The web UI (after deployment) has a **Manual Watcher** tab that will generate the exact command for you.
+
+`render.yaml` is in the repo if you want to switch to Blueprint later (recommended for future updates).
+
 ## Tips for beating OpenSea
 
 - Always use a prebuilt rarity map (`build_snapshot.py`)
 - Use Alchemy (fastest metadata + WS)
 - Set high `--threshold` for only the real gems
-- Run the watcher 24/7 on a cheap VPS or your machine
 - For IPFS-heavy collections, metadata can appear 1-10s after the mint tx
 
 ## Notes

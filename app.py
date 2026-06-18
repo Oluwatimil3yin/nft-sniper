@@ -1,4 +1,5 @@
 import os
+import json
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 from collections import Counter, defaultdict
@@ -258,6 +259,51 @@ def snipe():
         return jsonify({"error": f"API error: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"error": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/watcher-command", methods=["POST"])
+def watcher_command():
+    """Helper to generate the exact command for manual watcher runs (Railway shell / service)."""
+    data = request.json or {}
+    contract = (data.get("contract") or "").strip()
+    mode = data.get("mode", "reveal")
+    supply = int(data.get("supply", 10000))
+    threshold = float(data.get("threshold", 180))
+    blast = data.get("blast", True)
+
+    if not contract:
+        return jsonify({"error": "Contract address required"}), 400
+
+    cmd = f"python watcher.py {contract} --mode {mode} --supply {supply} --threshold {threshold}"
+    if blast:
+        cmd += " --blast"
+
+    return jsonify({
+        "command": cmd,
+        "env_vars": {
+            "CONTRACT": contract,
+            "WATCHER_MODE": mode,
+            "SUPPLY": supply,
+            "THRESHOLD": threshold,
+            "BLAST": str(blast).lower(),
+        },
+        "note": "Best used in Render Shell or a dedicated watcher worker service (set CONTRACT env var)."
+    })
+
+
+@app.route("/api/watcher-status")
+def watcher_status():
+    """Return last known watcher status (written by watcher.py when run manually)."""
+    try:
+        with open(".watcher_status.json") as f:
+            data = json.load(f)
+        return jsonify(data)
+    except Exception:
+        return jsonify({
+            "status": "not_running",
+            "message": "No status file yet. Run the watcher manually (see Manual Watcher tab).",
+            "last_updated": None
+        })
 
 
 if __name__ == "__main__":
